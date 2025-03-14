@@ -1,139 +1,134 @@
 # Aircraft Tracking System
 
-A Python-based system for monitoring aircraft in your area with special focus on tracking non-US and military aircraft. This script uses data from a local PiAware ADS-B receiver combined with OpenSky Network data to identify and track aircraft of interest.
+A Python-based system for tracking and visualizing aircraft using ADS-B data from a local PiAware receiver. This toolkit includes utilities for monitoring, visualizing, and specifically identifying foreign and military aircraft.
 
-## Features
+## Contents
 
-- **Dual Category Tracking**: Identifies both foreign and military aircraft
-- **Visual Distinction**: Uses color-coded terminal output to distinguish between aircraft types
-- **API Optimization**: Works within OpenSky Network API anonymous user limitations
-- **Continuous Monitoring**: Runs as a background process to provide real-time alerts
-- **Configurable Monitoring Area**: Adjustable geographic boundaries to optimize API usage
+This repository contains four main Python scripts for aircraft tracking and visualization:
 
-## Requirements
+1. **calculate_coords.py** - A utility to calculate monitoring area coordinates based on your location
+2. **console_track_foreign_mil.py** - Specialized tracker for identifying foreign and military aircraft
+3. **plot_adsb_ascii_hc.py** - Color-coded ASCII visualization of aircraft in your monitoring area
+4. **plot_adsb_ascii_bw.py** - Black and white ASCII visualization with red antenna marker
+
+## Setup Requirements
 
 - Python 3.6+
-- A running PiAware ADS-B receiver
-- Internet connection for OpenSky Network API access
-- Required Python packages: `requests`, `logging`
+- A running PiAware ADS-B receiver (or compatible dump1090-based ADS-B receiver)
+- Internet connection for OpenSky Network API access (required for console_track_foreign_mil.py)
+- Required Python packages: 
+  ```
+  pip install requests
+  ```
 
-## Installation
+## Getting Started
 
-1. Clone this repository:
-   ```
-   git clone https://github.com/yourusername/aircraft-tracking-system.git
-   cd aircraft-tracking-system
-   ```
+### 1. Calculate Your Monitoring Area
 
-2. Install required packages:
-   ```
-   pip install requests
-   ```
+First, determine the coordinates for your monitoring area using the coordinate calculator:
 
-3. Configure the script (see Configuration section below)
+```bash
+python calculate_coords.py
+```
 
-4. Run the script:
-   ```
-   python aircraft_tracker.py
-   ```
+Follow the prompts to enter your:
+- Latitude and longitude (your location)
+- Desired monitoring radius in kilometers
 
-## Configuration
+The script will output the required LAT_MIN, LAT_MAX, LON_MIN, LON_MAX coordinates for the other scripts.
 
-Before running the script, you need to update several key parameters:
+### 2. Configure Your Tracking Scripts
 
-### 1. PiAware Connection
+#### For the Plotting Visualizations
 
-Update the `PIAWARE_URL` variable with your PiAware IP address:
+Edit either `plot_adsb_ascii_hc.py` (color version) or `plot_adsb_ascii_bw.py` (B&W version) and update:
 
 ```python
+PIAWARE_IP = "<pi-ip>"  # Replace with your PiAware IP address
+PIAWARE_PORT = 80
+REFRESH_INTERVAL = 5  # Seconds between updates
+TABLE_LIMIT = 10  # Number of aircraft to show in the table
+PLOT_WIDTH = 80  # ASCII plot width
+PLOT_HEIGHT = 20  # ASCII plot height
+
+# Antenna coordinates - replace with your actual location
+ANTENNA_LAT = 40.7128  # Replace with your latitude
+ANTENNA_LON = -74.0060  # Replace with your longitude
+```
+
+#### For Foreign & Military Aircraft Tracking
+
+Edit `console_track_foreign_mil.py` and update:
+
+```python
+# PiAware connection
 PIAWARE_URL = "http://<pi-ip>/skyaware/data/aircraft.json"
+
+# OpenSky API with bounding box (customize for your location)
+LAT_MIN = 40.0  # Southern boundary - using outputs from calculate_coords.py
+LAT_MAX = 45.0  # Northern boundary
+LON_MIN = -74.0  # Western boundary
+LON_MAX = -69.0  # Eastern boundary
 ```
 
-Replace `<pi-ip>` with your PiAware device's IP address (e.g., `192.168.1.10`).
+You can also customize the military identification patterns in the script to better match aircraft in your region.
 
-### 2. Geographic Boundaries
+## Using the Tools
 
-Set your monitoring area by updating these coordinates:
+### Aircraft Visualization (ASCII Plotters)
 
-```python
-LAT_MIN = 40.0  # Southern boundary - adjust for your location
-LAT_MAX = 45.0  # Northern boundary - adjust for your location
-LON_MIN = -74.0  # Western boundary - adjust for your location
-LON_MAX = -69.0  # Eastern boundary - adjust for your location
+Run either of the ASCII visualization tools:
+
+```bash
+# For color-coded visualization
+python plot_adsb_ascii_hc.py
+
+# For black and white visualization (with red antenna)
+python plot_adsb_ascii_bw.py
 ```
 
-For optimal API usage, keep your area under 25 square degrees (approximately 500km × 500km).
+These tools provide:
+- A tabular view of the nearest aircraft
+- An ASCII plot showing aircraft positions relative to your antenna
+- Regular updates based on your configured refresh interval
 
-### 3. Military Aircraft Identification
+**Color-coded Version Legend:**
+- Green `#`: Aircraft with flight ID/callsign
+- Blue `+`: High altitude aircraft (above 20,000 feet)
+- Yellow `+`: Low altitude aircraft
+- Red `O`: Antenna location
 
-You can customize the military aircraft detection by updating the following lists:
+**B&W Version Legend:**
+- `#`: Aircraft with flight ID/callsign
+- `^`: High altitude aircraft (above 20,000 feet)
+- `+`: Low altitude aircraft
+- `X`: Unknown aircraft
+- Red `O`: Antenna location
 
-```python
-MILITARY_CALLSIGN_PATTERNS = [
-    # Add additional patterns relevant to your region
-]
+### Foreign & Military Aircraft Tracking
 
-MILITARY_ICAO_PREFIXES = [
-    # Add additional prefixes relevant to your region
-]
+For specialized tracking of foreign and military aircraft:
+
+```bash
+python console_track_foreign_mil.py
 ```
 
-### 4. API Usage Settings
-
-You can adjust the API usage parameters if needed:
-
-```python
-OPENSKY_RATE_LIMIT = 10  # Minimum time between API calls (seconds)
-DAILY_CREDIT_LIMIT = 400  # Total API credits per day
-CREDIT_USAGE = 1  # Credits used per call (depends on area size)
-```
-
-## Determining Your Location Parameters
-
-To find appropriate coordinates for your monitoring area:
-
-1. **Using Google Maps**:
-   - Right-click on points that define your area boundaries
-   - Select "What's here?" to see the coordinates
-
-2. **Using a Bounding Box Tool**:
-   - Visit https://boundingbox.klokantech.com/
-   - Draw your area and copy the coordinates
-
-3. **Calculate Area Size**:
-   - Ensure your area is within one of these credit usage categories:
-     - Under 25 square degrees: 1 credit per call
-     - 25-100 square degrees: 2 credits per call
-     - 100-400 square degrees: 3 credits per call
-     - Over 400 square degrees: 4 credits per call
-
-## Understanding the Output
-
-The script provides color-coded terminal output:
-
-- 🌐 **Yellow text**: Foreign aircraft
-- 🪖 **Red text**: Military aircraft
-- **Cyan text**: API usage information
-
-Each aircraft report includes:
-- ICAO hex code
-- Callsign (if available)
-- Status (Military or Foreign with country)
-- Altitude, speed, and heading
-- GPS coordinates
+This tool:
+- Identifies military aircraft based on callsign patterns and ICAO hex codes
+- Identifies foreign aircraft using OpenSky Network registration data
+- Provides color-coded alerts when military or foreign aircraft are detected
+- Manages API usage to stay within OpenSky Network's free tier limits
 
 ## Running as a Background Service
 
-To run this script continuously as a service:
+### Using systemd (Linux)
 
-### Using systemd (Linux):
-
-1. Create a service file:
-   ```
+1. Create a service file for your preferred script:
+   ```bash
    sudo nano /etc/systemd/system/aircraft-tracker.service
    ```
 
-2. Add the following content:
+2. Add the following content (adjust paths as needed):
    ```
    [Unit]
    Description=Aircraft Tracking System
@@ -142,7 +137,7 @@ To run this script continuously as a service:
    [Service]
    User=pi
    WorkingDirectory=/path/to/script/directory
-   ExecStart=/usr/bin/python3 /path/to/script/aircraft_tracker.py
+   ExecStart=/usr/bin/python3 /path/to/script/console_track_foreign_mil.py
    Restart=always
    RestartSec=5
 
@@ -151,32 +146,30 @@ To run this script continuously as a service:
    ```
 
 3. Enable and start the service:
-   ```
+   ```bash
    sudo systemctl enable aircraft-tracker.service
    sudo systemctl start aircraft-tracker.service
    ```
 
-4. Check status:
-   ```
-   sudo systemctl status aircraft-tracker.service
-   ```
+## OpenSky Network API Limitations
+
+Anonymous users of the OpenSky Network API have the following limitations:
+- 400 API credits per day
+- Minimum 10 seconds between API calls
+- No historical data access
+- Considerations for bounding box size (affects credit usage)
+
+The `console_track_foreign_mil.py` script is optimized to work within these limits.
 
 ## Troubleshooting
 
-- **No aircraft detected**: Ensure your PiAware is functioning correctly and the IP address is correct
-- **API rate limit issues**: Reduce your monitoring area size or increase the polling interval
-- **Missing military aircraft**: Add additional callsign patterns or ICAO prefixes to the detection lists
-
-## API Limitations
-
-Anonymous users of the OpenSky Network API have the following limitations:
-
-- Data is limited to the most recent state vectors (no historical data)
-- Time resolution is limited to 10 seconds
-- 400 API credits per day
+- **No data received**: Ensure your PiAware is running and the IP address is correct
+- **No aircraft displayed**: Verify your antenna coordinates and monitoring area size
+- **OpenSky API errors**: Check your internet connection and reduce monitoring area size
+- **Terminal display issues**: Adjust PLOT_WIDTH and PLOT_HEIGHT values to fit your terminal
 
 ## Acknowledgments
 
-- PiAware for providing local ADS-B data
+- PiAware/FlightAware for providing local ADS-B data
 - OpenSky Network for aircraft registration data
 - Contributors to the ADS-B community
