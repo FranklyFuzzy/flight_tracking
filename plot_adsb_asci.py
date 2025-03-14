@@ -4,21 +4,33 @@ import json
 import time
 import math
 import sys
-import argparse
 import os
 
-def fetch_aircraft_data(ip_address, port=80):
+# Configuration
+# Replace these values with your own coordinates from calculate_coords.py
+PIAWARE_IP = "<pi-ip>"  # Replace with your PiAware IP address
+PIAWARE_PORT = 80
+REFRESH_INTERVAL = 5  # Seconds between updates
+TABLE_LIMIT = 10  # Number of aircraft to show in the table
+PLOT_WIDTH = 80  # ASCII plot width
+PLOT_HEIGHT = 20  # ASCII plot height
+
+# Antenna coordinates - replace with your actual location
+ANTENNA_LAT = 40.7128  # Replace with your latitude
+ANTENNA_LON = -74.0060  # Replace with your longitude
+
+def fetch_aircraft_data():
     """Fetch aircraft data from the SkyAware JSON API"""
-    url = f"http://{ip_address}:{port}/skyaware/data/aircraft.json"
+    url = f"http://{PIAWARE_IP}:{PIAWARE_PORT}/skyaware/data/aircraft.json"
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()  # Raise an exception for HTTP errors
         return response.json()
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data: {e}")
         return None
 
-def simple_ascii_plot(aircraft_list, width=80, height=20, antenna_lat=None, antenna_lon=None):
+def simple_ascii_plot(aircraft_list, width=PLOT_WIDTH, height=PLOT_HEIGHT):
     """
     Create a simple ASCII plot of aircraft positions
     
@@ -45,12 +57,11 @@ def simple_ascii_plot(aircraft_list, width=80, height=20, antenna_lat=None, ante
     min_lon = min(a['lon'] for a in valid_aircraft)
     max_lon = max(a['lon'] for a in valid_aircraft)
     
-    # Include antenna position in bounds if provided
-    if antenna_lat is not None and antenna_lon is not None:
-        min_lat = min(min_lat, antenna_lat)
-        max_lat = max(max_lat, antenna_lat)
-        min_lon = min(min_lon, antenna_lon)
-        max_lon = max(max_lon, antenna_lon)
+    # Include antenna position in bounds
+    min_lat = min(min_lat, ANTENNA_LAT)
+    max_lat = max(max_lat, ANTENNA_LAT)
+    min_lon = min(min_lon, ANTENNA_LON)
+    max_lon = max(max_lon, ANTENNA_LON)
     
     # Add a small margin
     lat_margin = (max_lat - min_lat) * 0.1 if max_lat != min_lat else 0.1
@@ -66,19 +77,21 @@ def simple_ascii_plot(aircraft_list, width=80, height=20, antenna_lat=None, ante
     
     # Colors for terminal output
     RED = '\033[91m' if os.name != 'nt' else ''  # Red for antenna
+    GREEN = '\033[92m' if os.name != 'nt' else ''  # Green for commercial
+    BLUE = '\033[94m' if os.name != 'nt' else ''  # Blue for high altitude
+    YELLOW = '\033[93m' if os.name != 'nt' else ''  # Yellow for low altitude
     RESET = '\033[0m' if os.name != 'nt' else ''  # Reset color
     
-    # Plot antenna position if provided
-    if antenna_lat is not None and antenna_lon is not None:
-        antenna_x = int((antenna_lon - min_lon) / (max_lon - min_lon) * (width - 1)) if max_lon > min_lon else width // 2
-        antenna_y = int((max_lat - antenna_lat) / (max_lat - min_lat) * (height - 1)) if max_lat > min_lat else height // 2
-        
-        # Ensure coordinates are within grid bounds
-        antenna_x = max(0, min(antenna_x, width - 1))
-        antenna_y = max(0, min(antenna_y, height - 1))
-        
-        # Mark the antenna position with a red 'O'
-        grid[antenna_y][antenna_x] = f"{RED}O{RESET}"
+    # Plot antenna position
+    antenna_x = int((ANTENNA_LON - min_lon) / (max_lon - min_lon) * (width - 1)) if max_lon > min_lon else width // 2
+    antenna_y = int((max_lat - ANTENNA_LAT) / (max_lat - min_lat) * (height - 1)) if max_lat > min_lat else height // 2
+    
+    # Ensure coordinates are within grid bounds
+    antenna_x = max(0, min(antenna_x, width - 1))
+    antenna_y = max(0, min(antenna_y, height - 1))
+    
+    # Mark the antenna position with a red 'O'
+    grid[antenna_y][antenna_x] = f"{RED}O{RESET}"
     
     # Plot each aircraft on the grid
     for aircraft in valid_aircraft:
@@ -96,16 +109,20 @@ def simple_ascii_plot(aircraft_list, width=80, height=20, antenna_lat=None, ante
         # Get aircraft identifier (flight ID or ICAO)
         flight_id = aircraft.get('flight', '').strip()
         icao = aircraft.get('hex', '').upper()
+        altitude = aircraft.get('alt_baro', 0)
         
-        # Use different symbols based on aircraft data
-        symbol = 'X'  # Default
+        # Use different symbols and colors based on aircraft data
         if flight_id:
-            symbol = '#'  # Aircraft with flight number
+            symbol = f"{GREEN}#{RESET}"  # Aircraft with flight number (green)
             label = flight_id
-        elif 'alt_baro' in aircraft:
-            symbol = '+'  # Aircraft with altitude
+        elif altitude and altitude > 20000:
+            symbol = f"{BLUE}+{RESET}"  # High altitude aircraft (blue)
+            label = icao
+        elif altitude:
+            symbol = f"{YELLOW}+{RESET}"  # Low altitude aircraft (yellow)
             label = icao
         else:
+            symbol = 'X'  # Unknown aircraft
             label = icao
         
         # Add the symbol to the grid
@@ -142,9 +159,9 @@ def simple_ascii_plot(aircraft_list, width=80, height=20, antenna_lat=None, ante
             print(labels_line)
     
     print("+" + "-" * width + "+")
-    print(f"Legend: # = Flight with ID, + = Aircraft with altitude, X = Other, {RED}O{RESET} = Antenna location")
+    print(f"Legend: {GREEN}#{RESET} = Flight with ID, {BLUE}+{RESET} = High altitude, {YELLOW}+{RESET} = Low altitude, X = Other, {RED}O{RESET} = Antenna location")
 
-def print_aircraft_table(aircraft_list, limit=10):
+def print_aircraft_table(aircraft_list, limit=TABLE_LIMIT):
     """Print a table of aircraft data"""
     if not aircraft_list:
         print("No aircraft data available.")
@@ -162,7 +179,7 @@ def print_aircraft_table(aircraft_list, limit=10):
     # Print header
     print("\nAircraft Data:")
     header = "| {:^8} | {:^8} | {:^7} | {:^8} | {:^6} | {:^7} | {:^6} |".format(
-        "ICAO", "Flight", "Squawk", "Altitude", "Speed", "Heading", "Dist"
+        "ICAO", "Flight", "Squawk", "Altitude", "Speed", "Heading", "Signal"
     )
     print("-" * len(header))
     print(header)
@@ -176,10 +193,10 @@ def print_aircraft_table(aircraft_list, limit=10):
         alt = f"{aircraft.get('alt_baro', 'N/A')}" if 'alt_baro' in aircraft else 'N/A'
         speed = f"{aircraft.get('gs', 'N/A')}" if 'gs' in aircraft else 'N/A'
         heading = f"{aircraft.get('track', 'N/A')}" if 'track' in aircraft else 'N/A'
-        distance = f"{aircraft.get('distance', 'N/A')}" if 'distance' in aircraft else 'N/A'
+        signal = f"{aircraft.get('rssi', 'N/A')}" if 'rssi' in aircraft else 'N/A'
         
         row = "| {:^8} | {:^8} | {:^7} | {:^8} | {:^6} | {:^7} | {:^6} |".format(
-            icao, flight, squawk, alt, speed, heading, distance
+            icao, flight, squawk, alt, speed, heading, signal
         )
         print(row)
     
@@ -189,38 +206,19 @@ def print_aircraft_table(aircraft_list, limit=10):
         print(f"Displaying {limit} of {len(sorted_aircraft)} aircraft.")
 
 def main():
-    parser = argparse.ArgumentParser(description='Plot aircraft data from SkyAware/dump1090')
-    parser.add_argument('ip', help='IP address or hostname of the SkyAware server')
-    parser.add_argument('--port', type=int, default=80, help='Port (default: 80)')
-    parser.add_argument('--refresh', type=int, default=5, help='Refresh interval in seconds (default: 5)')
-    parser.add_argument('--limit', type=int, default=10, help='Limit number of aircraft in table (default: 10)')
-    parser.add_argument('--width', type=int, default=80, help='ASCII plot width (default: 80)')
-    parser.add_argument('--height', type=int, default=20, help='ASCII plot height (default: 20)')
-    parser.add_argument('--antenna-lat', type=float, help='Antenna latitude')
-    parser.add_argument('--antenna-lon', type=float, help='Antenna longitude')
-    
-    args = parser.parse_args()
-    
-    print(f"Fetching aircraft data from: http://{args.ip}:{args.port}/skyaware/data/aircraft.json")
+    print(f"ADS-B Aircraft Plotter")
+    print(f"======================")
+    print(f"Fetching aircraft data from: http://{PIAWARE_IP}:{PIAWARE_PORT}/skyaware/data/aircraft.json")
+    print(f"Antenna coordinates: {ANTENNA_LAT}, {ANTENNA_LON}")
     print(f"Press Ctrl+C to exit.")
-    
-    # Initialize antenna coordinates
-    antenna_lat = args.antenna_lat
-    antenna_lon = args.antenna_lon
     
     try:
         while True:
             # Fetch and parse the data
-            data = fetch_aircraft_data(args.ip, args.port)
+            data = fetch_aircraft_data()
             
             if data and 'aircraft' in data:
                 aircraft_list = data['aircraft']
-                
-                # If antenna coordinates were not provided, try to get them from the data
-                if antenna_lat is None and antenna_lon is None and 'lat' in data and 'lon' in data:
-                    antenna_lat = data['lat']
-                    antenna_lon = data['lon']
-                    print(f"Using antenna coordinates from data: {antenna_lat}, {antenna_lon}")
                 
                 # Clear the screen (works on most terminals)
                 print("\033c", end="")
@@ -231,16 +229,15 @@ def main():
                     print(f"Last update: {timestamp}")
                 
                 # Print aircraft table
-                print_aircraft_table(aircraft_list, limit=args.limit)
+                print_aircraft_table(aircraft_list)
                 
                 # Plot the data
-                simple_ascii_plot(aircraft_list, width=args.width, height=args.height, 
-                                 antenna_lat=antenna_lat, antenna_lon=antenna_lon)
+                simple_ascii_plot(aircraft_list)
             else:
                 print("No valid data received.")
             
             # Wait before refreshing
-            time.sleep(args.refresh)
+            time.sleep(REFRESH_INTERVAL)
             
     except KeyboardInterrupt:
         print("\nExiting...")
