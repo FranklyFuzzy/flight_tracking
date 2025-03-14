@@ -35,6 +35,58 @@ def calculate_bounding_box(center_lat, center_lon, distance_km):
     
     return (lat_min, lat_max, lon_min, lon_max)
 
+def calculate_area_from_distance(center_lat, distance_km):
+    """
+    Calculate the resulting bounding box area in square degrees for a given distance.
+    
+    Args:
+        center_lat (float): Center latitude in decimal degrees
+        distance_km (float): Distance from center to edge in kilometers
+    
+    Returns:
+        float: Area in square degrees
+    """
+    # Earth's radius in kilometers
+    EARTH_RADIUS = 6371.0
+    
+    # Convert distance from kilometers to degrees
+    distance_deg_lat = (distance_km / EARTH_RADIUS) * (180.0 / math.pi)
+    distance_deg_lon = distance_deg_lat / math.cos(math.radians(center_lat))
+    
+    # Calculate the resulting area in square degrees
+    # Area = width × height, and both dimensions are doubled because distance is from center to edge
+    area = (2 * distance_deg_lat) * (2 * distance_deg_lon)
+    
+    return area
+
+def find_max_distance_for_area(center_lat, target_area, precision=0.01):
+    """
+    Find the maximum distance that produces a bounding box with area <= target_area.
+    Uses binary search for accuracy.
+    
+    Args:
+        center_lat (float): Center latitude in decimal degrees
+        target_area (float): Target area in square degrees
+        precision (float): Precision of the result in kilometers
+        
+    Returns:
+        float: Maximum distance in kilometers
+    """
+    min_dist = 0
+    max_dist = 1000  # Start with a reasonable upper bound
+    
+    # Binary search
+    while max_dist - min_dist > precision:
+        current_dist = (min_dist + max_dist) / 2
+        area = calculate_area_from_distance(center_lat, current_dist)
+        
+        if area < target_area:
+            min_dist = current_dist
+        else:
+            max_dist = current_dist
+    
+    return min_dist  # Return the safe lower bound
+
 def main():
     print("============================================")
     print("Aircraft Tracking Area Calculator")
@@ -68,6 +120,18 @@ def main():
         # Calculate the area in square degrees
         area_deg_squared = (lat_max - lat_min) * (lon_max - lon_min)
         
+        # Calculate maximum distances for different credit thresholds
+        # Using binary search for accurate results
+        max_dist_1_credit = find_max_distance_for_area(center_lat, 25)
+        max_dist_2_credit = find_max_distance_for_area(center_lat, 100)
+        max_dist_3_credit = find_max_distance_for_area(center_lat, 400)
+        
+        # Apply safety margin of 1 km
+        safety_margin = 1.0
+        max_dist_1_credit_safe = max(max_dist_1_credit - safety_margin, 1)
+        max_dist_2_credit_safe = max(max_dist_2_credit - safety_margin, 1)
+        max_dist_3_credit_safe = max(max_dist_3_credit - safety_margin, 1)
+        
         # Display results
         print("\n============================================")
         print("RESULTS")
@@ -93,7 +157,22 @@ def main():
             print("  Area > 400 sq. deg: 4 credits per API call (Not recommended)")
             print("  Consider reducing your monitoring radius for optimal API usage.")
         
-        print("\nCopy these values into your tracking script configuration.")
+        # Show the actual calculated areas for verification
+        area_1_credit = calculate_area_from_distance(center_lat, max_dist_1_credit)
+        area_2_credit = calculate_area_from_distance(center_lat, max_dist_2_credit)
+        area_3_credit = calculate_area_from_distance(center_lat, max_dist_3_credit)
+        
+        # Maximum distance recommendations
+        print("\nMaximum Recommended Monitoring Distances:")
+        print(f"  The maximum distance -1km to stay in the 1 credit threshold is {max_dist_1_credit_safe:.2f} km")
+        print(f"  (At {max_dist_1_credit:.2f} km, area would be {area_1_credit:.2f} sq. deg)")
+        print(f"  The maximum distance -1km to stay in the 2 credit threshold is {max_dist_2_credit_safe:.2f} km")
+        print(f"  (At {max_dist_2_credit:.2f} km, area would be {area_2_credit:.2f} sq. deg)")
+        print(f"  The maximum distance -1km to stay in the 3 credit threshold is {max_dist_3_credit_safe:.2f} km")
+        print(f"  (At {max_dist_3_credit:.2f} km, area would be {area_3_credit:.2f} sq. deg)")
+        
+        print("\nNote: Maximum distances vary with latitude due to the Earth's shape.")
+        print("Copy these values into your tracking script configuration.")
 
     except ValueError:
         print("Error: Please enter valid numeric values.")
