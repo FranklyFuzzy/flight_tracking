@@ -37,6 +37,10 @@ Follow the prompts to enter your:
 
 The script will output the required LAT_MIN, LAT_MAX, LON_MIN, LON_MAX coordinates for the other scripts.
 
+Example output of python calculate_coords.py for New York City coordinates (40.7128, -74.0060) with a 50km monitoring radius
+![Screenshot 2025-05-18 at 11 02 43 PM](https://github.com/user-attachments/assets/182e4ffb-96b2-4652-957c-9b5b7cd84d7f)
+
+
 ### 2. Configure Your Tracking Scripts
 
 #### For the Plotting Visualizations
