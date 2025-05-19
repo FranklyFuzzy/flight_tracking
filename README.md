@@ -38,8 +38,7 @@ Follow the prompts to enter your:
 The script will output the required LAT_MIN, LAT_MAX, LON_MIN, LON_MAX coordinates for the other scripts.
 
 Example output of python calculate_coords.py for New York City coordinates (40.7128, -74.0060) with a 50km monitoring radius
-![Screenshot 2025-05-18 at 11 02 43 PM](https://github.com/user-attachments/assets/182e4ffb-96b2-4652-957c-9b5b7cd84d7f)
-
+<img width="536" alt="Screenshot 2025-05-19 at 1 12 35 AM" src="https://github.com/user-attachments/assets/b282cc60-0868-431b-8edd-f01a32c6b69d" />
 
 ### 2. Configure Your Tracking Scripts
 
@@ -116,6 +115,10 @@ For specialized tracking of foreign and military aircraft:
 ```bash
 python console_track_foreign_mil.py
 ```
+
+Example output of python console_track_foreign_mil.py (redacted)
+<img width="1021" alt="SCR-20250519-bkea" src="https://github.com/user-attachments/assets/5a9a2aba-2223-4ef5-a42f-55e97353dc76" />
+
 
 This tool:
 - Identifies military aircraft based on callsign patterns and ICAO hex codes
